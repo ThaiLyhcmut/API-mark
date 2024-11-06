@@ -42,14 +42,15 @@ func LoginController(c *gin.Context) {
 		return
 	}
 	token := helper.CreateJWT(user.ID)
-	c.SetCookie("token", token, 3600*24, "/", "", false, true)
+	c.SetCookie("token", token, 3600*24, "/", "", true, true)
 	c.JSON(200, gin.H{
-		"code": "Success",
+		"code":  "Success",
+		"token": token,
 	})
 }
 
 func LogoutController(c *gin.Context) {
-	c.SetCookie("token", "", -1, "/", "", false, true)
+	c.SetCookie("token", "", 3600*24, "/", "", true, true)
 	c.JSON(200, gin.H{
 		"code":    "Success",
 		"massage": "Đăng xuất thành công",
@@ -87,5 +88,26 @@ func CreateAdminController(c *gin.Context) {
 	})
 	c.JSON(201, gin.H{
 		"code": "vao duoc trang createAdmin",
+	})
+}
+
+func ProfileController(c *gin.Context) {
+	ID, _ := c.Get("ID")
+	collection := models.AdminModel()
+	var user models.InterfaceAdmin
+	err := collection.FindOne(
+		context.TODO(),
+		bson.M{
+			"_id": ID,
+		},
+	).Decode(&user)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "khong lay duoc thong tin nguoi dung trong dữ liệu vui lòng liên hệ admin để thêm bạn vào"})
+		return
+	}
+	c.JSON(200, gin.H{
+		"code": "success",
+		"msg":  "Thanh cong",
+		"user": user,
 	})
 }

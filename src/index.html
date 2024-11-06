@@ -34,14 +34,8 @@
     function generateCryptoRandomState() {
       const randomValues = new Uint32Array(2);
       window.crypto.getRandomValues(randomValues);
-
-      // Mã hóa thành UTF-8
       const utf8Encoder = new TextEncoder();
-      const utf8Array = utf8Encoder.encode(
-        String.fromCharCode.apply(null, randomValues)
-      );
-
-      // Mã hóa Base64 dữ liệu UTF-8
+      const utf8Array = utf8Encoder.encode(String.fromCharCode.apply(null, randomValues));
       return btoa(String.fromCharCode.apply(null, utf8Array))
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
@@ -57,50 +51,54 @@
 
     // Nếu có access token, thử gửi yêu cầu API.
     // Nếu không, bắt đầu quy trình OAuth 2.0.
-    function trySampleRequest() {
+    async function trySampleRequest() {
       var params = JSON.parse(localStorage.getItem('oauth2-test-params'));
       if (params && params['access_token']) {
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', 'https://www.googleapis.com/oauth2/v3/userinfo?access_token=' + params['access_token']);
-
-        xhr.onreadystatechange = function (e) {
-          if (xhr.readyState === 4 && xhr.status === 200) {
-            var userInfo = JSON.parse(xhr.response); // Phân tích phản hồi JSON
+        try {
+          const response = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${params['access_token']}`);
+          if (response.ok) {
+            const userInfo = await response.json(); // Phân tích phản hồi JSON
             console.log(userInfo); // In thông tin người dùng ra console
             document.getElementById('userInfo').textContent = JSON.stringify(userInfo, null, 2); // Hiển thị thông tin người dùng
 
             // Lấy ID Token từ params
             var idToken = params['id_token'];
             if (idToken) {
-              sendIdTokenToBackend(idToken);
+              await sendIdTokenToBackend(idToken);
             }
-          } else if (xhr.readyState === 4 && xhr.status === 401) {
+          } else if (response.status === 401) {
             // Token không hợp lệ, yêu cầu người dùng cấp quyền.
             oauth2SignIn();
           }
-        };
-        xhr.send(null);
+        } catch (error) {
+          console.error('Error fetching user info:', error);
+        }
       } else {
         oauth2SignIn();
       }
     }
 
     // Gửi ID Token đến backend
-    function sendIdTokenToBackend(idToken) {
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', 'http://localhost:8080/admin/api/login');
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4) {
-          if (xhr.status === 200) {
-            console.log('ID Token đã được gửi thành công.');
-          } else {
-            console.error('Lỗi khi gửi ID Token:', xhr.responseText);
-          }
+    async function sendIdTokenToBackend(idToken) {
+      try {
+        const response = await fetch('https://canxphung.id.vn/admin/api/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include', // Đảm bảo rằng cookie sẽ được gửi
+          body: JSON.stringify({ idToken: idToken }) // Gửi ID Token trong body
+        })
+
+        if (response.ok) {
+          console.log('ID Token đã được gửi thành công.');
+        } else {
+          const errorResponse = await response.text();
+          console.error('Lỗi khi gửi ID Token:', errorResponse);
         }
-      };
-      // Sử dụng 'idToken' làm khóa
-      xhr.send(JSON.stringify({ idToken: idToken })); // Gửi ID Token trong body
+      } catch (error) {
+        console.error('Error sending ID Token:', error);
+      }
     }
 
     /*
@@ -133,7 +131,6 @@
         'include_granted_scopes': 'true',
         'response_type': 'id_token token' // Yêu cầu cả ID Token và Access Token
       };
-
       // Thêm các tham số biểu mẫu dưới dạng giá trị đầu vào ẩn
       for (var p in params) {
         var input = document.createElement('input');
